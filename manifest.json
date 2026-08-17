@@ -1,11 +1,12 @@
 {
-  "name": "機械保全技能士 1問1答（画像問題見直し版）",
-  "short_name": "機械保全",
-  "description": "1級450問・2級250問、図問題見直しモード付き学習アプリ",
-  "start_url": "./index.html",
+  "name": "機械保全技能士 1級・2級 1問1答",
+  "short_name": "機械保全1問1答",
+  "description": "機械系保全作業 1級・2級 過去問700問",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#F5F7FB",
-  "theme_color": "#17365D",
+  "background_color": "#f4f7fb",
+  "theme_color": "#1f4e78",
   "icons": [
     {
       "src": "./icon-192.png",
