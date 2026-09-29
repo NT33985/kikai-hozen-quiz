@@ -52,7 +52,22 @@ button.ghost{background:var(--soft)}
 .progressbar{height:8px;background:#e6ebf1;border-radius:99px;overflow:hidden;margin-top:12px}
 .progressbar>div{height:100%;background:#7fb3dd;width:0}
 .small{font-size:12px;color:var(--muted)}
-@media(max-width:680px){.toolbar{grid-template-columns:1fr 1fr}.qtext{font-size:18px}.card{padding:15px}}
+@media(max-width:680px){
+  .app{padding:12px 10px 32px}
+  header{padding:18px 16px}
+  header h1{font-size:21px}
+  .toolbar{grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding:10px;gap:8px}
+  .toolbar>*{min-width:0;width:100%;max-width:100%}
+  .toolbar select{overflow:hidden;text-overflow:ellipsis}
+  .qtext{font-size:18px}
+  .card{padding:15px}
+}
+@media(max-width:390px){
+  .app{padding-left:8px;padding-right:8px}
+  .toolbar{gap:7px;padding:9px}
+  select,button{padding:10px 8px;font-size:14px}
+  #randomBtn{font-size:13px}
+}
 
 .export-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:18px;z-index:9999}
 .export-modal.show{display:flex}
