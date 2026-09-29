@@ -149,7 +149,7 @@ function keyOf(q){return `${q.grade}-${q.year}-${q.qno}`}
 function uniq(arr){return [...new Set(arr)].filter(Boolean).sort((a,b)=>String(a).localeCompare(String(b),"ja",{numeric:true}))}
 function fillSelect(sel, items, first){
   const v=sel.value; sel.innerHTML=`<option value="">${first}</option>`+items.map(x=>`<option>${escapeHtml(x)}</option>`).join("");
-  if(items.includes(v)) sel.value=v;
+  if(items.some(x=>String(x)===String(v))) sel.value=v;
 }
 function escapeHtml(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]))}
 function modeMatch(q){
