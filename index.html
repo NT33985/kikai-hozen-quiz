@@ -69,6 +69,17 @@ button.ghost{background:var(--soft)}
   #randomBtn{font-size:13px}
 }
 
+
+/* Quiz view: hide filters after starting; compact mobile navigation */
+.play-header{display:none;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:0;z-index:50;margin:0 0 12px;padding:10px 12px;background:#fff;border:1px solid var(--line);border-radius:13px;box-shadow:0 3px 14px rgba(26,47,73,.10)}
+.play-home{white-space:nowrap;background:var(--brand);color:#fff;border:1px solid var(--brand);padding:10px 14px;min-height:44px}
+.play-status{display:flex;flex-direction:column;align-items:flex-end;gap:3px;text-align:right;min-width:0}
+.play-status strong{font-size:14px;color:#17365d;font-variant-numeric:tabular-nums}
+.play-status span{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+body.is-playing .main-header,body.is-playing .toolbar{display:none}
+body.is-playing .play-header{display:flex}
+@media(max-width:680px){body.is-playing .app{padding-top:8px}.play-header{padding:7px 10px;gap:8px}.play-home{padding:9px 12px}}
+
 .export-modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;align-items:center;justify-content:center;padding:18px;z-index:9999}
 .export-modal.show{display:flex}
 .export-box{width:min(560px,100%);background:#fff;border-radius:18px;padding:20px;box-shadow:0 24px 70px rgba(15,23,42,.28)}
@@ -86,7 +97,7 @@ button.ghost{background:var(--soft)}
 </head>
 <body>
 <div class="app">
-<header>
+<header class="main-header">
   <h1>🔧 機械保全技能士 1問1答</h1>
   <p>機械系保全作業｜過去問700問＋予想問題200問｜Excel出力対応</p>
   <div class="stats">
@@ -97,6 +108,13 @@ button.ghost{background:var(--soft)}
   <div class="progressbar"><div id="bar"></div></div>
 </header>
 
+<div class="play-header" id="playHeader" aria-label="学習中のナビゲーション">
+  <button type="button" id="homeBtn" class="play-home" title="出題条件の選択画面に戻る">🏠 ホーム</button>
+  <div class="play-status" role="status" aria-live="off">
+    <strong id="playProgress">1 / 1 問</strong>
+    <span id="playScore">正解 0 / 0</span>
+  </div>
+</div>
 <div class="toolbar">
   <select id="mode">
     <option value="past">📘 過去問</option>
@@ -200,11 +218,25 @@ function toggleRandom(){
   updateRandomUI();
   saveState();
 }
+function setPlaying(playing){
+  document.body.classList.toggle("is-playing", !!playing);
+}
+function scrollToQuestionTop(){window.scrollTo({top:0,behavior:"auto"})}
+function goHome(){
+  setPlaying(false);
+  pool=[]; index=0; answered=false;
+  card.innerHTML='<div class="empty">📘 過去問 / 🎯 予想問題を選び、🔀ランダムのON/OFFを確認して「条件で出題」を押してください。</div>';
+  updateStats();
+  scrollToQuestionTop();
+}
 function start(kind="normal"){
   pool=filtered();
   if(kind==="wrong") pool=pool.filter(q=>wrongKeys.has(keyOf(q)));
   if(randomEnabled) pool=shuffle([...pool]);
-  index=0; answered=false; render();
+  index=0; answered=false;
+  setPlaying(pool.length>0);
+  render();
+  scrollToQuestionTop();
 }
 function normalizeAnswer(q){
   const a=q.answer.trim();
@@ -244,8 +276,8 @@ function render(){
       <button class="primary" id="next">次へ →</button>
     </div>`;
   [...card.querySelectorAll(".opt")].forEach(b=>b.addEventListener("click",()=>answer(Number(b.dataset.i))));
-  el("prev").onclick=()=>{if(index>0){index--;render()}};
-  el("next").onclick=()=>{if(index<pool.length-1){index++;render()}else{index=0;render()}};
+  el("prev").onclick=()=>{if(index>0){index--;render();scrollToQuestionTop()}};
+  el("next").onclick=()=>{if(index<pool.length-1){index++;render()}else{index=0;render()}scrollToQuestionTop()};
   el("show").onclick=()=>{el("details").classList.add("show")};
   updateStats();
 }
@@ -283,6 +315,8 @@ function updateStats(){
   el("scoreStat").textContent=`正解 ${correct} / ${attempts}`;
   el("rateStat").textContent=`正答率 ${attempts?Math.round(correct/attempts*100):"--"}%`;
   el("bar").style.width=`${pool.length?((index+1)/pool.length*100):0}%`;
+  el("playProgress").textContent=`${pool.length?index+1:0} / ${pool.length} 問`;
+  el("playScore").textContent=`正解 ${correct} / ${attempts} ・ 正答率 ${attempts?Math.round(correct/attempts*100):"--"}%`;
 }
 
 /* ===== Excel (.xlsx) export: dependency-free ===== */
@@ -564,6 +598,7 @@ function loadState(){
 [mode,grade,year,category].forEach(s=>s.addEventListener("change",refreshFilters));
 theme.addEventListener("change",updateStats);
 el("startBtn").onclick=()=>start("normal");
+el("homeBtn").onclick=goHome;
 el("randomBtn").onclick=toggleRandom;
 el("wrongBtn").onclick=()=>start("wrong");
 el("resetBtn").onclick=()=>{correct=0;attempts=0;wrongKeys.clear();answerLog={};saveState();updateStats()};
