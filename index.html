@@ -146,11 +146,12 @@ body.is-playing .play-header{display:flex}
       <input type="checkbox" id="exportWrongOnly">
       間違えた問題だけに絞って出力
     </label>
+    <label class="export-check"><input type="checkbox" id="exportImages" checked> 🖼️ 問題図・選択肢図をExcelに埋め込む</label>
     <div class="export-actions">
       <button class="primary" id="exportStudentBtn">📝 受験者用<br>問題のみ</button>
       <button class="ghost" id="exportTeacherBtn">👨‍🏫 講師用<br>正解・解説付き</button>
     </div>
-    <p class="export-note">※ 図問題はExcel内に「画像あり（アプリで確認）」と表示します。<br>※ 個人学習目的で使用し、第三者への共有・再配布はしないでください。</p>
+    <p class="export-note">※ 図付き問題はExcelの「問題図」「選択肢図」列に画像を配置できます。<br>※ 個人学習目的で使用し、第三者への共有・再配布はしないでください。</p>
     <button class="ghost" id="exportCloseBtn" style="width:100%;margin-top:4px">閉じる</button>
   </div>
 </div>
@@ -334,21 +335,23 @@ function xCell(v,row,col,style){
   if(typeof v==="boolean") return `<c r="${ref}" s="${s}" t="b"><v>${v?1:0}</v></c>`;
   return `<c r="${ref}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${xEsc(v)}</t></is></c>`;
 }
-function xSheetXml(rows,widths){
-  const maxCol=rows.reduce((m,r)=>Math.max(m,r.length),0);
-  const cols=(widths||[]).map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("");
-  const data=rows.map((r,ri)=>{
-    const rn=ri+1, st=ri===0?1:2;
-    const cells=r.map((v,ci)=>xCell(v,rn,ci+1,st)).join("");
-    return `<row r="${rn}"${ri===0?' ht="28" customHeight="1"':''}>${cells}</row>`;
-  }).join("");
-  const filter=rows.length>1&&maxCol?`<autoFilter ref="A1:${xCol(maxCol)}${rows.length}"/>`:"";
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
-${cols?`<cols>${cols}</cols>`:""}<sheetData>${data}</sheetData>${filter}
-</worksheet>`;
+
+function xSheetXml(rows,widths,imageMeta){
+ const maxCol=rows.reduce((m,r)=>Math.max(m,r.length),0);
+ const cols=(widths||[]).map((w,i)=>'<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+w+'" customWidth="1"/>').join("");
+ const data=rows.map((r,ri)=>{
+  const rn=ri+1,st=ri===0?1:2,cells=r.map((v,ci)=>xCell(v,rn,ci+1,st)).join("");
+  const height=ri===0?' ht="28" customHeight="1"':imageMeta&&imageMeta.rowsWithImages.has(ri)?' ht="137" customHeight="1"':'';
+  return '<row r="'+rn+'"'+height+'>'+cells+'</row>';
+ }).join("");
+ const filter=rows.length>1&&maxCol?'<autoFilter ref="A1:'+xCol(maxCol)+rows.length+'"/>':"";
+ const drawing=imageMeta&&imageMeta.count?'<drawing r:id="rId1"/>':"";
+ return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+ +'<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+ +'<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+ +(cols?'<cols>'+cols+'</cols>':'')+'<sheetData>'+data+'</sheetData>'+filter+drawing+'</worksheet>';
 }
+
 function xCrcTable(){
   const table=new Uint32Array(256);
   for(let n=0;n<256;n++){
@@ -406,6 +409,52 @@ function xZipStore(fileMap){
 function xSafeSheetName(name){
   return String(name).replace(/[\\\/\?\*\[\]:]/g,"_").slice(0,31)||"Sheet";
 }
+
+function xDecodeEmbeddedPng(uri){
+ const prefix="data:image/png;base64,";
+ if(typeof uri!=="string"||!uri.startsWith(prefix))return null;
+ const bin=atob(uri.slice(prefix.length)),bytes=new Uint8Array(bin.length);
+ for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+ if(bytes.length<24||bytes[0]!==137||bytes[1]!==80||bytes[2]!==78||bytes[3]!==71)return null;
+ const width=(bytes[16]*16777216+bytes[17]*65536+bytes[18]*256+bytes[19])>>>0;
+ const height=(bytes[20]*16777216+bytes[21]*65536+bytes[22]*256+bytes[23])>>>0;
+ return width&&height?{bytes,width,height}:null;
+}
+function xAddEmbeddedPictures(sheet,sheetNo,files,contentOverrides){
+ if(!sheet.imageQuestions||!sheet.imageQuestions.length)return null;
+ const rowsWithImages=new Set(),pics=[],rels=[];let count=0;
+ sheet.imageQuestions.forEach((q,qi)=>{
+  ["questionImage","choiceImage"].forEach((field,kind)=>{
+   if(!q[field])return;
+   const img=xDecodeEmbeddedPng(q[field]);if(!img)return;
+   count++;
+   const fileName="img_"+sheetNo+"_"+count+".png";
+   files["xl/media/"+fileName]=img.bytes;
+   rels.push('<Relationship Id="rId'+count+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/'+fileName+'"/>');
+   const scale=Math.min(244/img.width,166/img.height,1);
+   const cx=Math.max(1,Math.round(img.width*scale))*9525,cy=Math.max(1,Math.round(img.height*scale))*9525;
+   const col=sheet.imageCols[kind],row=qi+1;rowsWithImages.add(row);
+   const name=xEsc(q.grade+"_"+(q.predicted?"予想":q.year)+"_問"+q.qno+"_"+(kind?"選択肢図":"問題図"));
+   pics.push('<xdr:oneCellAnchor>'
+    +'<xdr:from><xdr:col>'+col+'</xdr:col><xdr:colOff>76200</xdr:colOff><xdr:row>'+row+'</xdr:row><xdr:rowOff>76200</xdr:rowOff></xdr:from>'
+    +'<xdr:ext cx="'+cx+'" cy="'+cy+'"/>'
+    +'<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="'+count+'" name="'+name+'"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>'
+    +'<xdr:blipFill><a:blip r:embed="rId'+count+'"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>'
+    +'<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'+cx+'" cy="'+cy+'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>'
+    +'</xdr:pic><xdr:clientData/></xdr:oneCellAnchor>');
+  });
+ });
+ if(!count)return null;
+ files["xl/drawings/drawing"+sheetNo+".xml"]='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+  +'<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+pics.join("")+'</xdr:wsDr>';
+ files["xl/drawings/_rels/drawing"+sheetNo+".xml.rels"]='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+  +'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+rels.join("")+'</Relationships>';
+ files["xl/worksheets/_rels/sheet"+sheetNo+".xml.rels"]='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+  +'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+  +'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing'+sheetNo+'.xml"/></Relationships>';
+ contentOverrides.push('<Override PartName="/xl/drawings/drawing'+sheetNo+'.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>');
+ return {count,rowsWithImages};
+}
 function buildXlsx(sheets){
   const files={};
   const sheetXmls=[], rels=[], contentOverrides=[];
@@ -414,7 +463,8 @@ function buildXlsx(sheets){
     sheetXmls.push(`<sheet name="${xEsc(xSafeSheetName(s.name))}" sheetId="${no}" r:id="rId${no}"/>`);
     rels.push(`<Relationship Id="rId${no}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${no}.xml"/>`);
     contentOverrides.push(`<Override PartName="/xl/worksheets/sheet${no}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`);
-    files[`xl/worksheets/sheet${no}.xml`]=xSheetXml(s.rows,s.widths);
+    const imageMeta=xAddEmbeddedPictures(s,no,files,contentOverrides);
+    files[`xl/worksheets/sheet${no}.xml`]=xSheetXml(s.rows,s.widths,imageMeta);
   });
   rels.push(`<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`);
 
@@ -422,6 +472,7 @@ function buildXlsx(sheets){
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
 <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
 <Default Extension="xml" ContentType="application/xml"/>
+<Default Extension="png" ContentType="image/png"/>
 <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
 <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
 ${contentOverrides.join("")}</Types>`;
@@ -473,7 +524,7 @@ function exportImageNote(q){
   const a=[];
   if(q.questionImage) a.push("問題画像あり");
   if(q.choiceImage) a.push("選択肢画像あり");
-  return a.length?a.join("・")+"（アプリで確認）":"";
+  return a.length?a.join("・"):"";
 }
 function exportConditions(qs){
   return [
@@ -485,6 +536,7 @@ function exportConditions(qs){
     ["小テーマ",exportSelectLabel(theme)],
     ["間違いだけ",el("exportWrongOnly").checked?"はい":"いいえ"],
     ["出力問題数",qs.length],
+    ["図の埋め込み",el("exportImages").checked?"あり（図付き問題はExcelの右側に表示）":"なし"],
     ["出力日時",new Date().toLocaleString("ja-JP")],
     ["利用上の注意","個人の学習・復習目的に限って使用してください。"],
     ["共有について","第三者への提供・共有・再配布・SNS等への公開は禁止します。"],
@@ -535,37 +587,39 @@ function exportFileName(kind){
   const ts=`${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`;
   const g=grade.value||"1級2級";
   const m=mode.value==="past"?"過去問":mode.value==="predicted"?"予想問題":"全問題";
-  return `機械保全技能士_${kind}_${g}_${m}_${ts}.xlsx`;
+  return `機械保全技能士_${kind}_${g}_${m}${el("exportImages").checked?"_画像付き":""}_${ts}.xlsx`;
 }
+
 function doExcelExport(kind){
-  const qs=exportTargetQuestions();
-  if(!qs.length){alert("出力対象の問題がありません。絞り込み条件を確認してください。");return}
-  let sheets;
-  if(kind==="student"){
-    sheets=[
-      {name:"問題",rows:studentRows(qs),widths:[7,11,12,8,10,10,10,15,24,55,28,28,28,28,24]},
-      {name:"出力条件・注意",rows:exportConditions(qs),widths:[20,78]}
-    ];
-  }else{
-    sheets=[
-      {name:"問題・解答",rows:teacherRows(qs),widths:[7,11,12,8,10,10,10,15,24,55,28,28,28,28,9,48,44,24]},
-      {name:"学習結果",rows:resultRows(qs),widths:[8,10,10,15,24,12,12,12,24]},
-      {name:"出力条件・注意",rows:exportConditions(qs),widths:[20,78]}
-    ];
-  }
-  try{
-    const bytes=buildXlsx(sheets);
-    const blob=new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
-    const url=URL.createObjectURL(blob), a=document.createElement("a");
-    a.href=url; a.download=exportFileName(kind==="student"?"受験者用":"講師用");
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),1000);
-    closeExportModal();
-  }catch(err){
-    console.error(err);
-    alert("Excel出力に失敗しました。ブラウザを更新して、もう一度お試しください。");
-  }
+ const qs=exportTargetQuestions();
+ if(!qs.length){alert("出力対象の問題がありません。絞り込み条件を確認してください。");return}
+ const withImages=el("exportImages").checked,isStudent=kind==="student";
+ const rows=isStudent?studentRows(qs):teacherRows(qs);
+ const widths=isStudent?[7,11,12,8,10,10,10,15,24,55,28,28,28,28,24]:[7,11,12,8,10,10,10,15,24,55,28,28,28,28,9,48,44,24];
+ if(withImages){
+  rows[0].push("問題図","選択肢図");
+  qs.forEach((q,i)=>rows[i+1].push(q.questionImage?"画像あり":"",q.choiceImage?"画像あり":""));
+  widths.push(39,39);
+ }
+ const mainSheet={name:isStudent?"問題":"問題・解答",rows,widths};
+ if(withImages){mainSheet.imageQuestions=qs;mainSheet.imageCols=isStudent?[15,16]:[18,19];}
+ const sheets=[mainSheet];
+ if(!isStudent)sheets.push({name:"学習結果",rows:resultRows(qs),widths:[8,10,10,15,24,12,12,12,24]});
+ sheets.push({name:"出力条件・注意",rows:exportConditions(qs),widths:[20,78]});
+ try{
+  const bytes=buildXlsx(sheets);
+  const blob=new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download=exportFileName(isStudent?"受験者用":"講師用");
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  closeExportModal();
+ }catch(err){
+  console.error(err);
+  alert("Excel出力に失敗しました。ブラウザを更新して、もう一度お試しください。");
+ }
 }
+
 function updateExportSummary(){
   const qs=exportTargetQuestions();
   el("exportSummary").innerHTML=
