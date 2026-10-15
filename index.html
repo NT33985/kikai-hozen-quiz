@@ -598,7 +598,7 @@ function doExcelExport(kind){
  const widths=isStudent?[7,11,12,8,10,10,10,15,24,55,28,28,28,28,24]:[7,11,12,8,10,10,10,15,24,55,28,28,28,28,9,48,44,24];
  if(withImages){
   rows[0].push("問題図","選択肢図");
-  qs.forEach((q,i)=>rows[i+1].push(q.questionImage?"画像あり":"",q.choiceImage?"画像あり":""));
+  qs.forEach((q,i)=>rows[i+1].push("",""));
   widths.push(39,39);
  }
  const mainSheet={name:isStudent?"問題":"問題・解答",rows,widths};
