@@ -94,6 +94,7 @@ body.is-playing .play-header{display:flex}
 @media(max-width:520px){.export-actions{grid-template-columns:1fr}.export-box{padding:17px}}
 
 </style>
+<link rel="stylesheet" href="challenge.css">
 </head>
 <body>
 <div class="app">
@@ -286,6 +287,7 @@ function answer(sel){
   if(answered) return;
   answered=true; attempts++;
   const q=pool[index], ans=normalizeAnswer(q);
+  const wasWrongBefore=wrongKeys.has(keyOf(q));
   const selectedLabel=q.type==="tf"?["○","×"][sel]:["ア","イ","ウ","エ"][sel];
   const k=keyOf(q), prev=answerLog[k]||{};
   answerLog[k]={
@@ -309,9 +311,13 @@ function answer(sel){
     wrongKeys.add(keyOf(q));
   }
   el("details").classList.add("show");
+  if(typeof window.challengeOnAnswer==="function"){
+    window.challengeOnAnswer({valid:ans>=0,isCorrect:ans>=0&&sel===ans,wasWrong:wasWrongBefore,question:q});
+  }
   saveState(); updateStats();
 }
 function updateStats(){
+  if(typeof window.challengeRefresh==="function")window.challengeRefresh();
   el("countStat").textContent=`${pool.length||filtered().length}問`;
   el("scoreStat").textContent=`正解 ${correct} / ${attempts}`;
   el("rateStat").textContent=`正答率 ${attempts?Math.round(correct/attempts*100):"--"}%`;
@@ -655,7 +661,7 @@ el("startBtn").onclick=()=>start("normal");
 el("homeBtn").onclick=goHome;
 el("randomBtn").onclick=toggleRandom;
 el("wrongBtn").onclick=()=>start("wrong");
-el("resetBtn").onclick=()=>{correct=0;attempts=0;wrongKeys.clear();answerLog={};saveState();updateStats()};
+el("resetBtn").onclick=()=>{correct=0;attempts=0;wrongKeys.clear();answerLog={};if(typeof window.challengeReset==="function")window.challengeReset();saveState();updateStats()};
 el("exportBtn").onclick=openExportModal;
 el("exportCloseBtn").onclick=closeExportModal;
 el("exportWrongOnly").addEventListener("change",updateExportSummary);
@@ -665,5 +671,6 @@ el("exportModal").addEventListener("click",e=>{if(e.target===el("exportModal"))c
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeExportModal()});
 loadState(); refreshFilters(); updateStats();
 </script>
+<script src="challenge.js"></script>
 </body>
 </html>
