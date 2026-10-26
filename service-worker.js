@@ -1,4 +1,4 @@
-const CACHE="kikai-hozen-challenge-20261025-v1";
+const CACHE="kikai-hozen-quiz-20261026-qfix-v2";
 const ASSETS=["./","./index.html","./challenge.css","./challenge.js","./manifest.json","./icon-192.png","./icon-512.png"];
 self.addEventListener("install",e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener("activate",e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
