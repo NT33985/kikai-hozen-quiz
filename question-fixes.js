@@ -72,6 +72,8 @@ o("2級",2025,31,[
 "うず巻きポンプから流体が規定量吐出されない原因の1つとして、インペラへの異物付着が挙げられる。"]);
 p("1級",2025,5,{question:"下図に示す回路は、自己保持回路を形成している。"});
 for(const y of [2021,2023,2024,2025])o("1級",y,50,["図ア（上から1番目）","図イ（上から2番目）","図ウ（上から3番目）","図エ（上から4番目）"]);
+const ruby35=get("1級",2017,35);if(ruby35&&ruby35.options[0]&&!ruby35.options[0].endsWith("。"))ruby35.options[0]+="。";
+const ruby1936=get("1級",2019,36);if(ruby1936)ruby1936.options[1]=ruby1936.options[1].replace(/。\s*すり\s*$/,"。");
 for(const q of PAST){q.options=q.options.map(t=>t.replace(/([ぁ-んァ-ン一-龯]) ([ぁ-んァ-ン一-龯])/g,"$1$2"));q.question=q.question.replace(/([ぁ-んァ-ン一-龯]) ([ぁ-んァ-ン一-龯])/g,"$1$2");}
 for(const [g,y,n] of [["1級",2024,40],["2級",2022,32]]){const q=get(g,y,n);if(!q)continue;PAST.splice(PAST.indexOf(q),1);const i=ALL.indexOf(q);if(i>=0)ALL.splice(i,1);}
 const st=document.createElement("style");
