@@ -104,6 +104,11 @@ for(const y of [2021,2023,2024,2025])o("1級",y,50,["図ア（上から1番目�
 const ruby35=get("1級",2017,35);if(ruby35&&ruby35.options[0]&&!ruby35.options[0].endsWith("。"))ruby35.options[0]+="。";
 const ruby1936=get("1級",2019,36);if(ruby1936)ruby1936.options[1]=ruby1936.options[1].replace(/。\s*すり\s*$/,"。");
 for(const q of PAST){q.options=q.options.map(t=>t.replace(/([ぁ-んァ-ン一-龯]) ([ぁ-んァ-ン一-龯])/g,"$1$2"));q.question=q.question.replace(/([ぁ-んァ-ン一-龯]) ([ぁ-んァ-ン一-龯])/g,"$1$2");}
+// 2018年度1級だけを対象に、抽出由来の不自然な日本語字間と句読点後の空白を最終除去する
+for(const q of PAST){if(q.grade!=="1級"||q.year!==2018)continue;
+  const clean=t=>{let prev;do{prev=t;t=t.replace(/([ぁ-んァ-ン一-龯]) ([ぁ-んァ-ン一-龯])/g,"$1$2");}while(t!==prev);return t.replace(/([、。]) +/g,"$1");};
+  q.question=clean(q.question);q.options=q.options.map(clean);
+}
 for(const [g,y,n] of [["1級",2024,40],["2級",2022,32]]){const q=get(g,y,n);if(!q)continue;PAST.splice(PAST.indexOf(q),1);const i=ALL.indexOf(q);if(i>=0)ALL.splice(i,1);}
 const st=document.createElement("style");
 st.textContent=".fig{width:auto;height:auto;max-width:100%;max-height:none;object-fit:contain;cursor:zoom-in}.opt{height:auto;min-height:53px;overflow-wrap:anywhere}.opt>span:last-child{white-space:pre-wrap;line-height:1.55;flex:1;min-width:0}.figZoom{position:fixed;inset:0;background:rgba(10,22,37,.90);z-index:20000;display:none;align-items:center;justify-content:center;padding:55px 8px 24px;overflow:auto}.figZoom.on{display:flex}.figZoom img{max-width:calc(100vw - 16px);max-height:calc(100vh - 85px);object-fit:contain;background:white}.figZoom button{position:fixed;top:12px;right:12px;width:auto;color:black;background:white}";
