@@ -93,6 +93,16 @@ body.is-playing .play-header{display:flex}
 .export-note{font-size:11px!important;color:#778397!important;margin-top:12px!important}
 @media(max-width:520px){.export-actions{grid-template-columns:1fr}.export-box{padding:17px}}
 
+/* Confirm before irreversibly clearing saved learning progress */
+.reset-warning{background:#fff5f3;border:1px solid #f0c5c0;border-radius:12px;padding:12px 14px;margin:10px 0 16px;font-size:13px;line-height:1.65}
+.reset-warning strong{color:#972d24}
+.reset-warning ul{margin:8px 0;padding-left:1.4em}
+.reset-warning li{margin:4px 0}
+.reset-warning p{margin:10px 0 0;color:#972d24;font-size:12px;font-weight:700}
+.reset-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.reset-actions button{min-height:48px}
+button.reset-danger{background:#b42318;color:#fff;border-color:#b42318}
+button.reset-danger:hover{background:#922019}
 </style>
 <link rel="stylesheet" href="challenge.css">
 </head>
@@ -154,6 +164,27 @@ body.is-playing .play-header{display:flex}
     </div>
     <p class="export-note">※ 図付き問題はExcelの「問題図」「選択肢図」列に画像を配置できます。<br>※ 個人学習目的で使用し、第三者への共有・再配布はしないでください。</p>
     <button class="ghost" id="exportCloseBtn" style="width:100%;margin-top:4px">閉じる</button>
+  </div>
+</div>
+
+<div class="export-modal" id="resetModal" aria-hidden="true">
+  <div class="export-box" role="dialog" aria-modal="true" aria-labelledby="resetTitle" aria-describedby="resetDesc">
+    <h2 id="resetTitle">⚠️ 実績データのリセット</h2>
+    <p id="resetDesc">保存されている学習実績を削除します。</p>
+    <div class="reset-warning">
+      <strong>【注意事項】削除されるデータ</strong>
+      <ul>
+        <li>正解数・回答数・正答率</li>
+        <li>間違えた問題の記録・解答履歴</li>
+        <li>チャレンジモードの実績・獲得バッジ・工場の成長状況</li>
+      </ul>
+      <p>※ 1級・2級の実績がまとめてリセットされます。<br>※ 削除したデータは元に戻せません。</p>
+    </div>
+    <p style="font-weight:800;color:#172033;font-size:15px">本当にすべて消しますか？</p>
+    <div class="reset-actions">
+      <button type="button" class="ghost" id="resetCancelBtn">キャンセル</button>
+      <button type="button" class="reset-danger" id="resetConfirmBtn">削除する</button>
+    </div>
   </div>
 </div>
 
@@ -697,14 +728,36 @@ el("startBtn").onclick=()=>start("normal");
 el("homeBtn").onclick=goHome;
 el("randomBtn").onclick=toggleRandom;
 el("wrongBtn").onclick=()=>start("wrong");
-el("resetBtn").onclick=()=>{correct=0;attempts=0;wrongKeys.clear();answerLog={};if(typeof window.challengeReset==="function")window.challengeReset();saveState();updateStats()};
+function openResetModal(){
+  const modal=el("resetModal");
+  modal.classList.add("show");
+  modal.setAttribute("aria-hidden","false");
+  el("resetCancelBtn").focus();
+}
+function closeResetModal(){
+  const modal=el("resetModal");
+  if(!modal.classList.contains("show"))return;
+  modal.classList.remove("show");
+  modal.setAttribute("aria-hidden","true");
+  el("resetBtn").focus();
+}
+function confirmReset(){
+  correct=0;attempts=0;wrongKeys.clear();answerLog={};
+  if(typeof window.challengeReset==="function")window.challengeReset();
+  saveState();updateStats();
+  closeResetModal();
+}
+el("resetBtn").onclick=openResetModal;
+el("resetCancelBtn").onclick=closeResetModal;
+el("resetConfirmBtn").onclick=confirmReset;
+el("resetModal").addEventListener("click",e=>{if(e.target===el("resetModal"))closeResetModal()});
 el("exportBtn").onclick=openExportModal;
 el("exportCloseBtn").onclick=closeExportModal;
 el("exportWrongOnly").addEventListener("change",updateExportSummary);
 el("exportStudentBtn").onclick=()=>doExcelExport("student");
 el("exportTeacherBtn").onclick=()=>doExcelExport("teacher");
 el("exportModal").addEventListener("click",e=>{if(e.target===el("exportModal"))closeExportModal()});
-document.addEventListener("keydown",e=>{if(e.key==="Escape")closeExportModal()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeExportModal();closeResetModal()}});
 loadState(); refreshFilters(); updateStats();
 </script>
 <script src="question-fixes.js"></script>
